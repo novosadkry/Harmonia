@@ -75,6 +75,8 @@ export class GuildPlayer extends EventEmitter {
       'pipe:1',
     ]);
 
+    ffmpeg.stderr.resume(); // drain stderr so it never blocks the audio pipe
+
     const resource = createAudioResource(ffmpeg.stdout, {
       inputType: StreamType.Raw,
       inlineVolume: true,

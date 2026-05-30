@@ -2,7 +2,8 @@
 
 import { usePlaybackStore } from '@/store/playback';
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import { Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, Repeat1 } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -22,16 +23,21 @@ const releaseDJ = (guildId: string) =>
   apiFetch(`/api/guild/${guildId}/dj/release`, { method: 'POST' });
 
 export default function NowPlayingView({ guildId }: { guildId: string }) {
-  const { state, currentTrack, djUserId, botError } = usePlaybackStore();
+  const { state, botError } = usePlaybackStore();
+  const { data: session } = useSession();
+  const s = session as typeof session & { userId?: string };
+  const currentUserId = s?.userId ?? null;
   const [elapsed, setElapsed] = useState(0);
-  const [djDisplayName, setDjDisplayName] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!djUserId) { setDjDisplayName(null); return; }
-    apiFetch<{ displayName: string | null }>(`/api/guild/${guildId}/dj`)
-      .then((data) => setDjDisplayName(data.displayName))
-      .catch(() => {});
-  }, [djUserId, guildId]);
+  const { data: djInfo } = useQuery({
+    queryKey: ['dj', guildId],
+    queryFn: () => apiFetch<{
+      userId: string | null,
+      displayName: string | null
+    }>(`/api/guild/${guildId}/dj`)
+  });
+  const djDisplayName = djInfo?.displayName ?? null;
+  const isCurrentUserDJ = !!currentUserId && currentUserId === (djInfo?.userId ?? null);
 
   const commandMutation = useMutation({
     mutationFn: (command: object) => sendCommand(guildId, command),
@@ -57,7 +63,7 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
     return () => clearInterval(interval);
   }, [state.status, state.startedAt, state.pausedAt]);
 
-  const duration = currentTrack?.durationSeconds ?? 0;
+  const duration = state.currentTrack?.durationSeconds ?? 0;
   const progress = duration > 0 ? Math.min((elapsed / duration) * 100, 100) : 0;
 
   const formatTime = (secs: number) => {
@@ -68,18 +74,18 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
 
   return (
     <div className="flex flex-col items-center max-w-xl mx-auto py-8">
-      {currentTrack?.thumbnailUrl ? (
+      {state.currentTrack?.thumbnailUrl ? (
         <div className="relative mb-8">
           <div
             className="absolute inset-0 rounded-2xl blur-3xl opacity-30 scale-110"
             style={{
-              backgroundImage: `url(${currentTrack.thumbnailUrl})`,
+              backgroundImage: `url(${state.currentTrack.thumbnailUrl})`,
               backgroundSize: 'cover',
             }}
           />
           <Image
-            src={currentTrack.thumbnailUrl}
-            alt={currentTrack.title}
+            src={state.currentTrack.thumbnailUrl}
+            alt={state.currentTrack.title}
             width={300}
             height={300}
             className="relative rounded-2xl object-cover shadow-2xl"
@@ -93,9 +99,9 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
 
       <div className="w-full text-center mb-6">
         <h2 className="text-2xl font-display font-bold truncate">
-          {currentTrack?.title ?? 'Nothing playing'}
+          {state.currentTrack?.title ?? 'Nothing playing'}
         </h2>
-        <p className="text-white/50 mt-1">{currentTrack?.artist ?? '—'}</p>
+        <p className="text-white/50 mt-1">{state.currentTrack?.artist ?? '—'}</p>
         <p className="text-xs text-yellow-500 mt-1">Playing via YouTube</p>
       </div>
 
@@ -114,9 +120,10 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
 
       <div className="flex items-center gap-6 mb-6">
         <button
+          disabled={!isCurrentUserDJ}
           onClick={() => commandMutation.mutate({ type: 'TOGGLE_SHUFFLE' })}
           className={cn(
-            'p-2 rounded-full transition-colors',
+            'p-2 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed',
             state.shuffle ? 'text-accent' : 'text-white/40 hover:text-white',
           )}
         >
@@ -124,19 +131,21 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
         </button>
 
         <button
+          disabled={!isCurrentUserDJ}
           onClick={() => commandMutation.mutate({ type: 'SEEK', positionSeconds: 0 })}
-          className="p-2 rounded-full text-white/60 hover:text-white transition-colors"
+          className="p-2 rounded-full text-white/60 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <SkipBack className="w-6 h-6" />
         </button>
 
         <button
+          disabled={!isCurrentUserDJ}
           onClick={() =>
             commandMutation.mutate(
               state.status === 'playing' ? { type: 'PAUSE' } : { type: 'PLAY' },
             )
           }
-          className="p-4 rounded-full bg-accent hover:bg-accent-hover transition-colors shadow-lg shadow-accent/30"
+          className="p-4 rounded-full bg-accent hover:bg-accent-hover transition-colors shadow-lg shadow-accent/30 disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {state.status === 'playing' ? (
             <Pause className="w-7 h-7" />
@@ -146,20 +155,22 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
         </button>
 
         <button
+          disabled={!isCurrentUserDJ}
           onClick={() => commandMutation.mutate({ type: 'SKIP' })}
-          className="p-2 rounded-full text-white/60 hover:text-white transition-colors"
+          className="p-2 rounded-full text-white/60 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <SkipForward className="w-6 h-6" />
         </button>
 
         <button
+          disabled={!isCurrentUserDJ}
           onClick={() => {
             const next =
               state.loop === 'none' ? 'track' : state.loop === 'track' ? 'queue' : 'none';
             commandMutation.mutate({ type: 'SET_LOOP', mode: next });
           }}
           className={cn(
-            'p-2 rounded-full transition-colors',
+            'p-2 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed',
             state.loop !== 'none' ? 'text-accent' : 'text-white/40 hover:text-white',
           )}
         >
@@ -196,16 +207,16 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
               </p>
             )}
             <button
-              disabled={djMutation.isPending}
-              onClick={() => djMutation.mutate(djUserId ? 'release' : 'take')}
+              disabled={djMutation.isPending || (!!djDisplayName && !isCurrentUserDJ)}
+              onClick={() => djMutation.mutate(isCurrentUserDJ ? 'release' : 'take')}
               className={cn(
-                'px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50',
-                djUserId
+                'px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                isCurrentUserDJ
                   ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
                   : 'bg-accent/20 text-accent-light hover:bg-accent/30',
               )}
             >
-              {djMutation.isPending ? '...' : djUserId ? 'Release DJ' : 'Take DJ'}
+              {djMutation.isPending ? '...' : isCurrentUserDJ ? 'Release DJ' : 'Take DJ'}
             </button>
           </div>
         </div>

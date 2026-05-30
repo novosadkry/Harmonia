@@ -10,11 +10,11 @@ const commandSchema = z.object({
     z.object({ type: z.literal('PAUSE') }),
     z.object({ type: z.literal('SKIP') }),
     z.object({ type: z.literal('STOP') }),
-    z.object({ type: z.literal('SEEK'), positionSeconds: z.number() }),
+    z.object({ type: z.literal('SEEK') }),
     z.object({ type: z.literal('SET_VOLUME'), volume: z.number().min(0).max(100) }),
     z.object({ type: z.literal('SET_LOOP'), mode: z.enum(['none', 'track', 'queue']) }),
     z.object({ type: z.literal('TOGGLE_SHUFFLE') }),
-    z.object({ type: z.literal('JOIN_CHANNEL'), channelId: z.string() }),
+    z.object({ type: z.literal('JOIN_CHANNEL'), userId: z.string() }),
     z.object({ type: z.literal('LEAVE_CHANNEL') }),
   ]),
 });

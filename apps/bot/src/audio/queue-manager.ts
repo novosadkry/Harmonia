@@ -37,6 +37,11 @@ export class QueueManager {
     logger.info({ guildId }, 'QueueManager initialized');
   }
 
+  private async getQueue(guildId: string): Promise<TrackInQueue[]> {
+    const raw = await redis.lrange(keys.queue(guildId), 0, -1);
+    return raw.map((item) => JSON.parse(item) as TrackInQueue);
+  }
+
   private async handleCommand(command: BotCommand): Promise<void> {
     switch (command.type) {
       case 'JOIN_CHANNEL': {
@@ -75,6 +80,15 @@ export class QueueManager {
         await this.emitEvent({ type: 'BOT_JOINED', channelId });
         logger.debug({ guildId: this.guildId, userId: command.userId }, 'Joined voice channel');
 
+        // Reset stale Redis state — audio player is fresh after joining
+        await this.updatePlaybackState({
+          status: 'stopped',
+          trackId: null,
+          currentTrack: null,
+          startedAt: null,
+          pausedAt: null
+        });
+
         const firstTrack = await this.popNextTrack();
         if (firstTrack) await this.playTrack(firstTrack);
 
@@ -110,15 +124,27 @@ export class QueueManager {
       }
 
       case 'SKIP': {
-        this.player.stop();
         logger.debug({ guildId: this.guildId }, 'Track skipped');
+        const skippedTrack = this.currentTrack;
+        this.currentTrack = null; // prevent onTrackEnded from processing this stop
+        this.player.stop();
+        if (skippedTrack) {
+          await this.emitEvent({ type: 'TRACK_ENDED', trackId: skippedTrack.trackId });
+        }
+        const next = await this.popNextTrack();
+        if (next) {
+          await this.playTrack(next);
+        } else {
+          await this.updatePlaybackState({ status: 'stopped', trackId: null, currentTrack: null });
+        }
         break;
       }
 
       case 'STOP': {
         this.player.stop();
         await redis.del(keys.queue(this.guildId));
-        await this.updatePlaybackState({ status: 'stopped', trackId: null });
+        await this.updatePlaybackState({ status: 'stopped', trackId: null, currentTrack: null });
+        await this.emitEvent({ type: 'QUEUE_UPDATED', queue: [] });
         logger.debug({ guildId: this.guildId }, 'Playback stopped and queue cleared');
         break;
       }
@@ -144,7 +170,10 @@ export class QueueManager {
       }
 
       case 'SEEK': {
-        logger.debug({ guildId: this.guildId, positionSeconds: command.positionSeconds }, 'Seek requested (restart)');
+        logger.debug({
+          guildId: this.guildId,
+          positionSeconds: command.positionSeconds
+        }, 'Seek requested');
         if (this.currentTrack) {
           await this.playTrack(this.currentTrack);
         }
@@ -155,10 +184,9 @@ export class QueueManager {
 
   private async onTrackEnded(): Promise<void> {
     logger.debug({ guildId: this.guildId }, 'Track ended');
+    if (!this.currentTrack) return;
 
-    if (this.currentTrack) {
-      await this.emitEvent({ type: 'TRACK_ENDED', trackId: this.currentTrack.trackId });
-    }
+    await this.emitEvent({ type: 'TRACK_ENDED', trackId: this.currentTrack.trackId });
 
     const state = await this.getState();
 
@@ -176,7 +204,7 @@ export class QueueManager {
       await this.playTrack(next);
     } else {
       this.currentTrack = null;
-      await this.updatePlaybackState({ status: 'stopped', trackId: null });
+      await this.updatePlaybackState({ status: 'stopped', trackId: null, currentTrack: null });
     }
   }
 
@@ -191,7 +219,12 @@ export class QueueManager {
       });
     }
     const next = await this.popNextTrack();
-    if (next) await this.playTrack(next);
+    if (next) {
+      await this.playTrack(next);
+    } else {
+      this.currentTrack = null;
+      await this.updatePlaybackState({ status: 'stopped', trackId: null, currentTrack: null });
+    }
   }
 
   private async playTrack(track: TrackInQueue): Promise<void> {
@@ -205,6 +238,7 @@ export class QueueManager {
       await this.updatePlaybackState({
         status: 'playing',
         trackId: track.trackId,
+        currentTrack: track,
         startedAt: Date.now(),
         pausedAt: null,
       });
@@ -221,6 +255,8 @@ export class QueueManager {
 
   private async popNextTrack(): Promise<TrackInQueue | null> {
     const raw = await redis.lpop(keys.queue(this.guildId));
+    const queue = await this.getQueue(this.guildId);
+    await this.emitEvent({ type: 'QUEUE_UPDATED', queue });
     if (!raw) return null;
     try {
       return JSON.parse(raw) as TrackInQueue;
@@ -234,6 +270,9 @@ export class QueueManager {
     return {
       status: (raw['status'] as PlaybackState['status']) ?? 'stopped',
       trackId: raw['trackId'] ?? null,
+      currentTrack: raw['currentTrack']
+        ? JSON.parse(raw['currentTrack']) as PlaybackState['currentTrack']
+        : null,
       startedAt: raw['startedAt'] ? parseInt(raw['startedAt'], 10) : null,
       pausedAt: raw['pausedAt'] ? parseInt(raw['pausedAt'], 10) : null,
       volume: raw['volume'] ? parseInt(raw['volume'], 10) : 80,
@@ -249,6 +288,7 @@ export class QueueManager {
     await redis.hmset(keys.playbackState(this.guildId), {
       status: merged.status,
       trackId: merged.trackId ?? '',
+      currentTrack: merged.currentTrack ? JSON.stringify(merged.currentTrack) : '',
       startedAt: merged.startedAt?.toString() ?? '',
       pausedAt: merged.pausedAt?.toString() ?? '',
       volume: merged.volume.toString(),

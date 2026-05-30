@@ -3,8 +3,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { usePlaybackStore } from '@/store/playback';
+import { useQueryClient } from '@tanstack/react-query';
+import type { BotEvent, PlaybackState, TrackInQueue } from '@harmonia/types';
 import { apiFetch } from '@/lib/api';
-import type { BotEvent } from '@harmonia/types';
 
 const SocketContext = createContext<Socket | null>(null);
 
@@ -20,37 +21,36 @@ export default function SocketProvider({
   children: React.ReactNode;
 }) {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const { setState, setCurrentTrack, setQueue, setDjUserId, setBotError } = usePlaybackStore();
+  const { setState, setQueue, setDjUserId, setBotError } = usePlaybackStore();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const s = io({ path: '/socket.io', transports: ['websocket'] });
 
     s.on('connect', () => {
       s.emit('join-guild', guildId);
-      // Hydrate initial DJ state — socket events only fire on changes
-      apiFetch<{ userId: string | null }>(`/api/guild/${guildId}/dj`)
-        .then((data) => setDjUserId(data.userId))
+      queryClient.invalidateQueries({ queryKey: ['dj', guildId] });
+
+      apiFetch<PlaybackState>(`/api/guild/${guildId}/playback`)
+        .then((playback) => {
+          setState(playback);
+          return apiFetch<TrackInQueue[]>(`/api/guild/${guildId}/queue`);
+        })
+        .then((queue) => setQueue(queue ?? []))
         .catch(() => {});
     });
 
     s.on('event', (event: BotEvent) => {
       switch (event.type) {
-        case 'TRACK_STARTED':
-          setCurrentTrack(event.track);
-          break;
-        case 'TRACK_ENDED':
-          setCurrentTrack(null);
-          break;
         case 'PLAYBACK_STATE_CHANGED':
           setState(event.state);
-          if (event.state.status === 'stopped')
-            setCurrentTrack(null);
           break;
         case 'QUEUE_UPDATED':
           setQueue(event.queue);
           break;
         case 'DJ_CHANGED':
           setDjUserId(event.userId);
+          queryClient.invalidateQueries({ queryKey: ['dj', guildId] });
           break;
         case 'BOT_ERROR':
           setBotError(event.error);
@@ -69,7 +69,7 @@ export default function SocketProvider({
       s.emit('leave-guild', guildId);
       s.disconnect();
     };
-  }, [guildId, setState, setQueue, setDjUserId, setBotError]);
+  }, [guildId, queryClient, setState, setQueue, setDjUserId, setBotError]);
 
   return <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>;
 }

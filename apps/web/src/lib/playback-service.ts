@@ -69,6 +69,9 @@ export async function getPlaybackState(guildId: string): Promise<PlaybackState> 
   return {
     status: (raw['status'] as PlaybackState['status']) ?? 'stopped',
     trackId: raw['trackId'] ?? null,
+    currentTrack: raw['currentTrack']
+      ? JSON.parse(raw['currentTrack']) as PlaybackState['currentTrack']
+      : null,
     startedAt: raw['startedAt'] ? parseInt(raw['startedAt'], 10) : null,
     pausedAt: raw['pausedAt'] ? parseInt(raw['pausedAt'], 10) : null,
     volume: raw['volume'] ? parseInt(raw['volume'], 10) : 80,

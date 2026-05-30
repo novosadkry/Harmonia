@@ -4,6 +4,7 @@ export type LoopMode = 'none' | 'track' | 'queue';
 export interface PlaybackState {
   status: PlaybackStatus;
   trackId: string | null;
+  currentTrack: TrackInQueue | null;
   startedAt: number | null;
   pausedAt: number | null;
   volume: number;

@@ -1,7 +1,7 @@
 'use client';
 
 import { usePlaybackStore } from '@/store/playback';
-import { Play, Pause, SkipForward, Volume2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import Image from 'next/image';
 import { apiFetch } from '@/lib/api';
@@ -15,14 +15,13 @@ async function sendCommand(guildId: string, command: object) {
 }
 
 export default function NowPlayingBar({ guildId }: { guildId: string }) {
-  const { state, queue } = usePlaybackStore();
-  const currentTrack = queue[0] ?? null;
+  const { state } = usePlaybackStore();
 
   const commandMutation = useMutation({
     mutationFn: (command: object) => sendCommand(guildId, command),
   });
 
-  if (state.status === 'stopped' && !currentTrack) {
+  if (!state.currentTrack) {
     return (
       <div className="h-20 bg-surface border-t border-white/5 flex items-center justify-center">
         <p className="text-sm text-white/30">No track playing</p>
@@ -32,10 +31,10 @@ export default function NowPlayingBar({ guildId }: { guildId: string }) {
 
   return (
     <div className="h-20 bg-surface border-t border-white/5 flex items-center px-6 gap-6">
-      {currentTrack?.thumbnailUrl && (
+      {state.currentTrack?.thumbnailUrl && (
         <Image
-          src={currentTrack.thumbnailUrl}
-          alt={currentTrack.title}
+          src={state.currentTrack.thumbnailUrl}
+          alt={state.currentTrack.title}
           width={48}
           height={48}
           className="rounded-lg object-cover"
@@ -43,11 +42,18 @@ export default function NowPlayingBar({ guildId }: { guildId: string }) {
       )}
 
       <div className="flex-1 min-w-0">
-        <p className="font-semibold truncate text-sm">{currentTrack?.title ?? '—'}</p>
-        <p className="text-white/50 text-xs truncate">{currentTrack?.artist ?? ''}</p>
+        <p className="font-semibold truncate text-sm">{state.currentTrack?.title ?? '—'}</p>
+        <p className="text-white/50 text-xs truncate">{state.currentTrack?.artist ?? ''}</p>
       </div>
 
       <div className="flex items-center gap-3">
+        <button
+          onClick={() => commandMutation.mutate({ type: 'SEEK', positionSeconds: 0 })}
+          className="p-2 rounded-full hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+        >
+          <SkipBack className="w-5 h-5" />
+        </button>
+
         <button
           onClick={() =>
             commandMutation.mutate(
