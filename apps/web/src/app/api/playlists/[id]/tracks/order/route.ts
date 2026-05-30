@@ -5,7 +5,8 @@ import { z } from 'zod';
 
 const schema = z.object({ orderedTrackIds: z.array(z.string()).min(1) });
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   const s = session as typeof session & { userId?: string };
   if (!s?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -15,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   try {
-    await reorderTracks(s.userId, params.id, parsed.data.orderedTrackIds);
+    await reorderTracks(s.userId, id, parsed.data.orderedTrackIds);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: 'Failed to reorder' }, { status: 400 });

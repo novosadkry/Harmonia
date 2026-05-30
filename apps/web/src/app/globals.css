@@ -1,6 +1,31 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0f0f13;
+  --color-surface: #1a1a22;
+  --color-surface-2: #242430;
+  --color-accent: #7c3aed;
+  --color-accent-hover: #6d28d9;
+  --color-accent-light: #a78bfa;
+  --color-amber: #f59e0b;
+  --color-amber-hover: #d97706;
+
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+
+  --animate-waveform: waveform 1.2s ease-in-out infinite;
+  --animate-fade-in: fadeIn 150ms ease;
+}
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 :root {
   --background: #0f0f13;
@@ -31,5 +56,4 @@ body::before {
 
 * { box-sizing: border-box; }
 
-/* Smooth transitions */
 button, a { transition: all 150ms ease; }

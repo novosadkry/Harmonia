@@ -1,6 +1,5 @@
 import {
   joinVoiceChannel,
-  leaveVoiceChannel,
   VoiceConnectionStatus,
   entersState,
   getVoiceConnection,

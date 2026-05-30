@@ -5,7 +5,8 @@ import { z } from 'zod';
 
 const addTrackSchema = z.object({ input: z.string().min(1) });
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   const s = session as typeof session & { userId?: string };
   if (!s?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   try {
-    const pt = await addTrack(s.userId, params.id, parsed.data.input);
+    const pt = await addTrack(s.userId, id, parsed.data.input);
     return NextResponse.json(pt, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to add track';

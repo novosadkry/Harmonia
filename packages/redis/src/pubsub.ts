@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { BotCommand, BotEvent } from '@harmonia/types';
 
 export async function publishCommand(

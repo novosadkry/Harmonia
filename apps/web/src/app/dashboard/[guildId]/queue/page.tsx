@@ -1,7 +1,6 @@
-'use client';
-
 import QueueView from '@/components/QueueView';
 
-export default function QueuePage({ params }: { params: { guildId: string } }) {
-  return <QueueView guildId={params.guildId} />;
+export default async function QueuePage({ params }: { params: Promise<{ guildId: string }> }) {
+  const { guildId } = await params;
+  return <QueueView guildId={guildId} />;
 }

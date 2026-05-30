@@ -2,7 +2,14 @@ import NextAuth from 'next-auth';
 import Discord from 'next-auth/providers/discord';
 import { prisma } from '@harmonia/db';
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+declare module 'next-auth' {
+  interface Session {
+    userId?: string;
+    accessToken?: string;
+  }
+}
+
+export const { handlers, auth } = NextAuth({
   providers: [
     Discord({
       clientId: process.env['DISCORD_CLIENT_ID'] ?? '',
@@ -47,10 +54,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      const s = session as typeof session & { userId?: string; accessToken?: string };
-      s.userId = token['discordId'] as string | undefined;
-      s.accessToken = token['accessToken'] as string | undefined;
-      return s;
+      const s = session as unknown as Record<string, unknown>;
+      s['userId'] = token['discordId'];
+      s['accessToken'] = token['accessToken'];
+      return session;
     },
   },
   pages: {

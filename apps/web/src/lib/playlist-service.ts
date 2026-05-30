@@ -1,7 +1,7 @@
 import { prisma } from '@harmonia/db';
 import { nanoid } from 'nanoid';
 import pLimit from 'p-limit';
-import { resolveTrack } from './resolver.js';
+import { resolveTrack } from './resolver';
 
 export async function createPlaylist(
   userId: string,

@@ -1,7 +1,6 @@
-'use client';
-
 import DiscoverView from '@/components/DiscoverView';
 
-export default function DiscoverPage({ params }: { params: { guildId: string } }) {
-  return <DiscoverView guildId={params.guildId} />;
+export default async function DiscoverPage({ params }: { params: Promise<{ guildId: string }> }) {
+  const { guildId } = await params;
+  return <DiscoverView guildId={guildId} />;
 }

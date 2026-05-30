@@ -1,7 +1,6 @@
-'use client';
-
 import PlaylistsView from '@/components/PlaylistsView';
 
-export default function PlaylistsPage({ params }: { params: { guildId: string } }) {
-  return <PlaylistsView guildId={params.guildId} />;
+export default async function PlaylistsPage({ params }: { params: Promise<{ guildId: string }> }) {
+  const { guildId } = await params;
+  return <PlaylistsView guildId={guildId} />;
 }

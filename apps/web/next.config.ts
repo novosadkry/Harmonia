@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@harmonia/db', '@harmonia/redis', '@harmonia/types'],
+  transpilePackages: ['@harmonia/types'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'i.ytimg.com' },

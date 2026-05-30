@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
-export default function GuildPage({ params }: { params: { guildId: string } }) {
-  redirect(`/dashboard/${params.guildId}/now-playing`);
+export default async function GuildPage({ params }: { params: Promise<{ guildId: string }> }) {
+  const { guildId } = await params;
+  redirect(`/dashboard/${guildId}/now-playing`);
 }

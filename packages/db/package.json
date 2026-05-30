@@ -2,20 +2,32 @@
   "name": "@harmonia/db",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "build": "prisma generate && tsc"
   },
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
-    "@prisma/client": "^5.14.0"
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "dotenv": "^17.4.2",
+    "pg": "^8.21.0"
   },
   "devDependencies": {
-    "prisma": "^5.14.0"
+    "@types/node": "^25.9.1",
+    "@types/pg": "^8.20.0",
+    "prisma": "catalog:prisma",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3"
   }
 }

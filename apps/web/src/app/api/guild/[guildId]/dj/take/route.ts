@@ -5,7 +5,8 @@ import { z } from 'zod';
 
 const schema = z.object({ channelId: z.string().min(1) });
 
-export async function POST(req: NextRequest, { params }: { params: { guildId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ guildId: string }> }) {
+  const { guildId } = await params;
   const session = await auth();
   const s = session as typeof session & { userId?: string };
   if (!s?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: { guildId: st
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   try {
-    const result = await takeDJControl(s.userId, params.guildId, parsed.data.channelId);
+    const result = await takeDJControl(s.userId, guildId, parsed.data.channelId);
     if (!result.success) {
       return NextResponse.json({ error: 'DJ control taken by another user', currentDj: result.currentDj }, { status: 409 });
     }
