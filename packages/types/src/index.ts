@@ -30,7 +30,7 @@ export type BotCommand =
   | { type: 'SET_VOLUME'; volume: number }
   | { type: 'SET_LOOP'; mode: LoopMode }
   | { type: 'TOGGLE_SHUFFLE' }
-  | { type: 'JOIN_CHANNEL'; channelId: string }
+  | { type: 'JOIN_CHANNEL'; userId: string }
   | { type: 'LEAVE_CHANNEL' };
 
 export type BotEvent =
@@ -41,4 +41,5 @@ export type BotEvent =
   | { type: 'PLAYBACK_STATE_CHANGED'; state: PlaybackState }
   | { type: 'DJ_CHANGED'; userId: string | null }
   | { type: 'BOT_JOINED'; channelId: string }
-  | { type: 'BOT_LEFT' };
+  | { type: 'BOT_LEFT' }
+  | { type: 'BOT_ERROR'; error: string };

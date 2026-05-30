@@ -18,12 +18,29 @@ async function getUserGuilds(accessToken: string): Promise<Guild[]> {
   return res.json() as Promise<Guild[]>;
 }
 
+async function getBotGuildIds(): Promise<Set<string>> {
+  const botToken = process.env['DISCORD_BOT_TOKEN'];
+  if (!botToken) return new Set();
+  const res = await fetch('https://discord.com/api/users/@me/guilds', {
+    headers: { Authorization: `Bot ${botToken}` },
+    next: { revalidate: 60 },
+  });
+  if (!res.ok) return new Set();
+  const guilds = (await res.json()) as Guild[];
+  return new Set(guilds.map((g) => g.id));
+}
+
 export default async function DashboardPage() {
   const session = await auth();
   const s = session as typeof session & { userId?: string; accessToken?: string };
   if (!s?.userId) redirect('/');
 
-  const guilds = s.accessToken ? await getUserGuilds(s.accessToken) : [];
+  const [userGuilds, botGuildIds] = await Promise.all([
+    s.accessToken ? getUserGuilds(s.accessToken) : Promise.resolve([]),
+    getBotGuildIds(),
+  ]);
+
+  const guilds = userGuilds.filter((g) => botGuildIds.has(g.id));
 
   return (
     <main className="min-h-screen p-8 relative z-10">

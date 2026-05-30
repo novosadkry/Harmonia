@@ -15,28 +15,31 @@ const sendCommand = (guildId: string, command: object) =>
     body: JSON.stringify({ command }),
   });
 
-const takeDJ = (guildId: string, channelId: string) =>
-  apiFetch(`/api/guild/${guildId}/dj/take`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ channelId }),
-  });
+const takeDJ = (guildId: string) =>
+  apiFetch(`/api/guild/${guildId}/dj/take`, { method: 'POST' });
 
 const releaseDJ = (guildId: string) =>
   apiFetch(`/api/guild/${guildId}/dj/release`, { method: 'POST' });
 
 export default function NowPlayingView({ guildId }: { guildId: string }) {
-  const { state, queue, djUserId } = usePlaybackStore();
-  const currentTrack = queue[0] ?? null;
+  const { state, currentTrack, djUserId, botError } = usePlaybackStore();
   const [elapsed, setElapsed] = useState(0);
+  const [djDisplayName, setDjDisplayName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!djUserId) { setDjDisplayName(null); return; }
+    apiFetch<{ displayName: string | null }>(`/api/guild/${guildId}/dj`)
+      .then((data) => setDjDisplayName(data.displayName))
+      .catch(() => {});
+  }, [djUserId, guildId]);
 
   const commandMutation = useMutation({
     mutationFn: (command: object) => sendCommand(guildId, command),
   });
 
   const djMutation = useMutation({
-    mutationFn: ({ action, channelId }: { action: 'take' | 'release'; channelId?: string }) =>
-      action === 'take' ? takeDJ(guildId, channelId!) : releaseDJ(guildId),
+    mutationFn: (action: 'take' | 'release') =>
+      action === 'take' ? takeDJ(guildId) : releaseDJ(guildId),
   });
 
   useEffect(() => {
@@ -184,24 +187,17 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-white/40">DJ Control</p>
-            <p className="text-sm font-medium">{djUserId ?? 'No DJ active'}</p>
+            <p className="text-sm font-medium">{djDisplayName ?? 'No DJ active'}</p>
           </div>
           <div className="flex flex-col items-end gap-1">
-            {djMutation.isError && (
+            {(djMutation.isError || botError) && (
               <p className="text-xs text-red-400">
-                {djMutation.error instanceof Error ? djMutation.error.message : 'Error'}
+                {botError ?? (djMutation.error instanceof Error ? djMutation.error.message : 'Error')}
               </p>
             )}
             <button
               disabled={djMutation.isPending}
-              onClick={() => {
-                if (djUserId) {
-                  djMutation.mutate({ action: 'release' });
-                } else {
-                  const channelId = prompt('Enter voice channel ID:');
-                  if (channelId) djMutation.mutate({ action: 'take', channelId });
-                }
-              }}
+              onClick={() => djMutation.mutate(djUserId ? 'release' : 'take')}
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50',
                 djUserId

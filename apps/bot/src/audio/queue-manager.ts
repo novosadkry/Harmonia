@@ -5,8 +5,6 @@ import { VoiceManager } from './voice-manager.js';
 import type { Guild } from 'discord.js';
 import { logger } from '../logger.js';
 
-const DJ_LOCK_TTL = 300;
-
 export class QueueManager {
   private player: GuildPlayer;
   private voiceManager: VoiceManager;
@@ -42,12 +40,44 @@ export class QueueManager {
   private async handleCommand(command: BotCommand): Promise<void> {
     switch (command.type) {
       case 'JOIN_CHANNEL': {
-        const connection = await this.voiceManager.join(this.guild, command.channelId);
+        let member;
+        try {
+          member = await this.guild.members.fetch(command.userId);
+        } catch {
+          await redis.del(keys.djLock(this.guildId));
+          await this.emitEvent({ type: 'DJ_CHANGED', userId: null });
+          await this.emitEvent({ type: 'BOT_ERROR', error: 'Could not find you in this server.' });
+          logger.debug({ guildId: this.guildId, userId: command.userId }, 'Failed to find user in server');
+          break;
+        }
+
+        const channelId = member.voice.channelId;
+        if (!channelId) {
+          await redis.del(keys.djLock(this.guildId));
+          await this.emitEvent({ type: 'DJ_CHANGED', userId: null });
+          await this.emitEvent({ type: 'BOT_ERROR', error: 'You must be in a voice channel first.' });
+          logger.debug({ guildId: this.guildId, userId: command.userId }, 'User not in voice channel');
+          break;
+        }
+
+        let connection;
+        try {
+          connection = await this.voiceManager.join(this.guild, channelId);
+        } catch (err) {
+          await redis.del(keys.djLock(this.guildId));
+          await this.emitEvent({ type: 'DJ_CHANGED', userId: null });
+          await this.emitEvent({ type: 'BOT_ERROR', error: 'Failed to join voice channel.' });
+          logger.error({ guildId: this.guildId, channelId, err }, 'Failed to join voice channel');
+          break;
+        }
+
         this.player.setConnection(connection);
-        await this.emitEvent({ type: 'BOT_JOINED', channelId: command.channelId });
+        await this.emitEvent({ type: 'BOT_JOINED', channelId });
+        logger.debug({ guildId: this.guildId, userId: command.userId }, 'Joined voice channel');
 
         const firstTrack = await this.popNextTrack();
         if (firstTrack) await this.playTrack(firstTrack);
+
         break;
       }
 
@@ -55,23 +85,33 @@ export class QueueManager {
         this.player.stop();
         this.voiceManager.leave(this.guildId);
         await this.emitEvent({ type: 'BOT_LEFT' });
+        logger.debug({ guildId: this.guildId }, 'Left voice channel');
         break;
       }
 
       case 'PLAY': {
-        this.player.resume();
-        await this.updatePlaybackState({ status: 'playing' });
+        const state = await this.getState();
+        if (state.status === 'stopped') {
+          const next = await this.popNextTrack();
+          if (next) await this.playTrack(next);
+        } else {
+          this.player.resume();
+          await this.updatePlaybackState({ status: 'playing' });
+        }
+        logger.debug({ guildId: this.guildId }, 'Playback resumed');
         break;
       }
 
       case 'PAUSE': {
         this.player.pause();
         await this.updatePlaybackState({ status: 'paused', pausedAt: Date.now() });
+        logger.debug({ guildId: this.guildId }, 'Playback paused');
         break;
       }
 
       case 'SKIP': {
         this.player.stop();
+        logger.debug({ guildId: this.guildId }, 'Track skipped');
         break;
       }
 
@@ -79,28 +119,32 @@ export class QueueManager {
         this.player.stop();
         await redis.del(keys.queue(this.guildId));
         await this.updatePlaybackState({ status: 'stopped', trackId: null });
+        logger.debug({ guildId: this.guildId }, 'Playback stopped and queue cleared');
         break;
       }
 
       case 'SET_VOLUME': {
         this.player.setVolume(command.volume);
         await this.updatePlaybackState({ volume: command.volume });
+        logger.debug({ guildId: this.guildId, volume: command.volume }, 'Volume changed');
         break;
       }
 
       case 'SET_LOOP': {
         await this.updatePlaybackState({ loop: command.mode });
+        logger.debug({ guildId: this.guildId, loopMode: command.mode }, 'Loop mode changed');
         break;
       }
 
       case 'TOGGLE_SHUFFLE': {
         const state = await this.getState();
         await this.updatePlaybackState({ shuffle: !state.shuffle });
+        logger.debug({ guildId: this.guildId, shuffle: !state.shuffle }, 'Shuffle toggled');
         break;
       }
 
       case 'SEEK': {
-        logger.info({ guildId: this.guildId, positionSeconds: command.positionSeconds }, 'Seek requested (restart)');
+        logger.debug({ guildId: this.guildId, positionSeconds: command.positionSeconds }, 'Seek requested (restart)');
         if (this.currentTrack) {
           await this.playTrack(this.currentTrack);
         }
@@ -110,6 +154,8 @@ export class QueueManager {
   }
 
   private async onTrackEnded(): Promise<void> {
+    logger.debug({ guildId: this.guildId }, 'Track ended');
+
     if (this.currentTrack) {
       await this.emitEvent({ type: 'TRACK_ENDED', trackId: this.currentTrack.trackId });
     }
@@ -135,6 +181,8 @@ export class QueueManager {
   }
 
   private async onTrackError(error: string): Promise<void> {
+    logger.debug({ guildId: this.guildId, error }, 'Track error occurred');
+
     if (this.currentTrack) {
       await this.emitEvent({
         type: 'TRACK_ERROR',
@@ -147,6 +195,8 @@ export class QueueManager {
   }
 
   private async playTrack(track: TrackInQueue): Promise<void> {
+    logger.debug({ guildId: this.guildId, trackId: track.trackId }, 'Attempting to play track');
+
     this.currentTrack = track;
     const videoId = track.youtubeVideoId;
 
@@ -159,6 +209,7 @@ export class QueueManager {
         pausedAt: null,
       });
       await this.emitEvent({ type: 'TRACK_STARTED', track });
+      logger.debug({ guildId: this.guildId, trackId: track.trackId }, 'Track started');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error({ guildId: this.guildId, videoId, err: msg }, 'Failed to play track');

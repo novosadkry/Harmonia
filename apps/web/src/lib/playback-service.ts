@@ -1,4 +1,4 @@
-import { redis, keys, publishCommand } from '@harmonia/redis';
+import { redis, keys, publishCommand, publishEvent } from '@harmonia/redis';
 import { prisma } from '@harmonia/db';
 import type { PlaybackState, TrackInQueue, BotCommand } from '@harmonia/types';
 
@@ -7,7 +7,6 @@ const DJ_LOCK_TTL = 300; // 5 minutes
 export async function takeDJControl(
   userId: string,
   guildId: string,
-  channelId: string,
 ): Promise<{ success: boolean; currentDj: string | null }> {
   const lockKey = keys.djLock(guildId);
   const result = await redis.set(lockKey, userId, 'EX', DJ_LOCK_TTL, 'NX');
@@ -19,7 +18,11 @@ export async function takeDJControl(
 
   await publishCommand(redis, keys.commandChannel(guildId), {
     type: 'JOIN_CHANNEL',
-    channelId,
+    userId,
+  });
+  await publishEvent(redis, keys.eventChannel(guildId), {
+    type: 'DJ_CHANGED',
+    userId
   });
 
   return { success: true, currentDj: userId };
@@ -34,8 +37,14 @@ export async function releaseDJControl(
 
   if (currentDj !== userId) throw new Error('You do not hold DJ control');
 
-  await publishCommand(redis, keys.commandChannel(guildId), { type: 'LEAVE_CHANNEL' });
+  await publishCommand(redis, keys.commandChannel(guildId), {
+    type: 'LEAVE_CHANNEL'
+  });
   await redis.del(lockKey);
+  await publishEvent(redis, keys.eventChannel(guildId), {
+    type: 'DJ_CHANGED',
+    userId: null
+  });
 }
 
 export async function getDJState(guildId: string): Promise<string | null> {
@@ -78,6 +87,9 @@ export async function enqueueTrack(
   guildId: string,
   trackId: string,
 ): Promise<void> {
+  const currentDj = await redis.get(keys.djLock(guildId));
+  if (currentDj !== userId) throw new Error('You do not hold DJ control');
+
   const track = await prisma.track.findUnique({ where: { id: trackId } });
   if (!track) throw new Error('Track not found');
 
@@ -95,10 +107,12 @@ export async function enqueueTrack(
   await prisma.track.update({ where: { id: trackId }, data: { playCount: { increment: 1 } } });
 
   const queue = await getQueue(guildId);
-  await publishCommand(redis, keys.commandChannel(guildId), {
-    type: 'QUEUE_UPDATED' as never,
-    queue,
-  } as never);
+  await publishEvent(redis, keys.eventChannel(guildId), { type: 'QUEUE_UPDATED', queue });
+
+  const state = await getPlaybackState(guildId);
+  if (state.status === 'stopped') {
+    await publishCommand(redis, keys.commandChannel(guildId), { type: 'PLAY' });
+  }
 }
 
 export async function enqueuePlaylist(
@@ -106,6 +120,9 @@ export async function enqueuePlaylist(
   guildId: string,
   playlistId: string,
 ): Promise<void> {
+  const currentDj = await redis.get(keys.djLock(guildId));
+  if (currentDj !== userId) throw new Error('You do not hold DJ control');
+
   const playlist = await prisma.playlist.findUnique({
     where: { id: playlistId },
     include: { tracks: { include: { track: true }, orderBy: { position: 'asc' } } },
@@ -126,13 +143,15 @@ export async function enqueuePlaylist(
     return JSON.stringify(entry);
   });
 
-  if (entries.length > 0) {
-    await redis.rpush(keys.queue(guildId), ...entries);
-  }
+  if (entries.length === 0) return;
+
+  await redis.rpush(keys.queue(guildId), ...entries);
 
   const queue = await getQueue(guildId);
-  await publishCommand(redis, keys.commandChannel(guildId), {
-    type: 'QUEUE_UPDATED' as never,
-    queue,
-  } as never);
+  await publishEvent(redis, keys.eventChannel(guildId), { type: 'QUEUE_UPDATED', queue });
+
+  const state = await getPlaybackState(guildId);
+  if (state.status === 'stopped') {
+    await publishCommand(redis, keys.commandChannel(guildId), { type: 'PLAY' });
+  }
 }

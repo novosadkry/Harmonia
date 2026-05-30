@@ -6,7 +6,7 @@ import {
   NoSubscriberBehavior,
   StreamType,
 } from '@discordjs/voice';
-import type { AudioPlayer } from '@discordjs/voice';
+import type { AudioPlayer, AudioResource } from '@discordjs/voice';
 import { EventEmitter } from 'events';
 import ffmpegStatic from 'ffmpeg-static';
 import { spawn } from 'child_process';
@@ -16,6 +16,7 @@ export class GuildPlayer extends EventEmitter {
   private player: AudioPlayer;
   private connection: VoiceConnection | null = null;
   private volume = 0.8;
+  private currentResource: AudioResource | null = null;
 
   constructor(public readonly guildId: string) {
     super();
@@ -68,7 +69,6 @@ export class GuildPlayer extends EventEmitter {
       '-reconnect_delay_max', '5',
       '-i', streamUrl,
       '-vn',
-      '-af', `volume=${this.volume}`,
       '-f', 's16le',
       '-ar', '48000',
       '-ac', '2',
@@ -77,8 +77,11 @@ export class GuildPlayer extends EventEmitter {
 
     const resource = createAudioResource(ffmpeg.stdout, {
       inputType: StreamType.Raw,
+      inlineVolume: true,
     });
+    resource.volume?.setVolumeLogarithmic(this.volume);
 
+    this.currentResource = resource;
     this.player.play(resource);
   }
 
@@ -96,6 +99,7 @@ export class GuildPlayer extends EventEmitter {
 
   setVolume(vol: number): void {
     this.volume = Math.max(0, Math.min(1, vol / 100));
+    this.currentResource?.volume?.setVolumeLogarithmic(this.volume);
   }
 
   getStatus(): AudioPlayerStatus {
