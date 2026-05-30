@@ -1,4 +1,4 @@
-export type PlaybackStatus = 'playing' | 'paused' | 'stopped';
+export type PlaybackStatus = 'playing' | 'paused' | 'stopped' | 'loading';
 export type LoopMode = 'none' | 'track' | 'queue';
 
 export interface PlaybackState {

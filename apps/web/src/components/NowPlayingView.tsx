@@ -182,7 +182,7 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
         </button>
       </div>
 
-      {state.status === 'playing' && (
+      {state.status === 'loading' && (
         <div className="flex items-end gap-1 h-8 mb-4">
           {Array.from({ length: 5 }).map((_, i) => (
             <div

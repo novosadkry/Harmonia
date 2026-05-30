@@ -233,6 +233,14 @@ export class QueueManager {
     this.currentTrack = track;
     const videoId = track.youtubeVideoId;
 
+    await this.updatePlaybackState({
+      status: 'loading',
+      trackId: track.trackId,
+      currentTrack: track,
+      startedAt: null,
+      pausedAt: null,
+    });
+
     try {
       await this.player.play(videoId);
       await this.updatePlaybackState({

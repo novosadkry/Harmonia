@@ -1,7 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { redis, keys } from '@harmonia/redis';
-import { logger } from '../logger.js';
 
 export const data = new SlashCommandBuilder()
   .setName('dj')
