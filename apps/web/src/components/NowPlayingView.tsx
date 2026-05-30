@@ -6,26 +6,24 @@ import { useMutation } from '@tanstack/react-query';
 import { Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, Repeat1 } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
-async function sendCommand(guildId: string, command: object) {
-  await fetch(`/api/guild/${guildId}/command`, {
+const sendCommand = (guildId: string, command: object) =>
+  apiFetch(`/api/guild/${guildId}/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ command }),
   });
-}
 
-async function takeDJ(guildId: string, channelId: string) {
-  return fetch(`/api/guild/${guildId}/dj/take`, {
+const takeDJ = (guildId: string, channelId: string) =>
+  apiFetch(`/api/guild/${guildId}/dj/take`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ channelId }),
   });
-}
 
-async function releaseDJ(guildId: string) {
-  return fetch(`/api/guild/${guildId}/dj/release`, { method: 'POST' });
-}
+const releaseDJ = (guildId: string) =>
+  apiFetch(`/api/guild/${guildId}/dj/release`, { method: 'POST' });
 
 export default function NowPlayingView({ guildId }: { guildId: string }) {
   const { state, queue, djUserId } = usePlaybackStore();
@@ -34,6 +32,11 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
 
   const commandMutation = useMutation({
     mutationFn: (command: object) => sendCommand(guildId, command),
+  });
+
+  const djMutation = useMutation({
+    mutationFn: ({ action, channelId }: { action: 'take' | 'release'; channelId?: string }) =>
+      action === 'take' ? takeDJ(guildId, channelId!) : releaseDJ(guildId),
   });
 
   useEffect(() => {
@@ -183,24 +186,32 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
             <p className="text-sm text-white/40">DJ Control</p>
             <p className="text-sm font-medium">{djUserId ?? 'No DJ active'}</p>
           </div>
-          <button
-            onClick={() => {
-              if (djUserId) {
-                releaseDJ(guildId);
-              } else {
-                const channelId = prompt('Enter voice channel ID:');
-                if (channelId) takeDJ(guildId, channelId);
-              }
-            }}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
-              djUserId
-                ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
-                : 'bg-accent/20 text-accent-light hover:bg-accent/30',
+          <div className="flex flex-col items-end gap-1">
+            {djMutation.isError && (
+              <p className="text-xs text-red-400">
+                {djMutation.error instanceof Error ? djMutation.error.message : 'Error'}
+              </p>
             )}
-          >
-            {djUserId ? 'Release DJ' : 'Take DJ'}
-          </button>
+            <button
+              disabled={djMutation.isPending}
+              onClick={() => {
+                if (djUserId) {
+                  djMutation.mutate({ action: 'release' });
+                } else {
+                  const channelId = prompt('Enter voice channel ID:');
+                  if (channelId) djMutation.mutate({ action: 'take', channelId });
+                }
+              }}
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50',
+                djUserId
+                  ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
+                  : 'bg-accent/20 text-accent-light hover:bg-accent/30',
+              )}
+            >
+              {djMutation.isPending ? '...' : djUserId ? 'Release DJ' : 'Take DJ'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

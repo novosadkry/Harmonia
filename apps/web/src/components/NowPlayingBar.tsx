@@ -4,9 +4,10 @@ import { usePlaybackStore } from '@/store/playback';
 import { Play, Pause, SkipForward, Volume2 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import Image from 'next/image';
+import { apiFetch } from '@/lib/api';
 
 async function sendCommand(guildId: string, command: object) {
-  await fetch(`/api/guild/${guildId}/command`, {
+  await apiFetch(`/api/guild/${guildId}/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ command }),

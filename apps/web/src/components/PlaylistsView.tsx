@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Music2, Lock, Globe } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
+import { apiFetch } from '@/lib/api';
 
 interface Playlist {
   id: string;
@@ -20,16 +21,16 @@ export default function PlaylistsView({ guildId }: { guildId: string }) {
 
   const { data: playlists = [] } = useQuery<Playlist[]>({
     queryKey: ['playlists'],
-    queryFn: () => fetch('/api/playlists').then((r) => r.json()),
+    queryFn: () => apiFetch<Playlist[]>('/api/playlists'),
   });
 
   const createMutation = useMutation({
     mutationFn: (playlistName: string) =>
-      fetch('/api/playlists', {
+      apiFetch('/api/playlists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: playlistName }),
-      }).then((r) => r.json()),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
       setCreating(false);
