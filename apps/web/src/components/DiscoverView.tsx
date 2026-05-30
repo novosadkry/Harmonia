@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import Image from 'next/image';
 import { TrendingUp, Download } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 interface Track {
   id: string;
@@ -20,16 +21,16 @@ export default function DiscoverView({ guildId }: { guildId: string }) {
 
   const { data: trending = [] } = useQuery<Track[]>({
     queryKey: ['trending'],
-    queryFn: () => fetch('/api/tracks/trending').then((r) => r.json()),
+    queryFn: () => apiFetch<Track[]>('/api/tracks/trending'),
   });
 
   const cloneMutation = useMutation({
     mutationFn: (code: string) =>
-      fetch('/api/playlists/clone', {
+      apiFetch('/api/playlists/clone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shareCode: code }),
-      }).then((r) => r.json()),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
       setShareCode('');
@@ -39,7 +40,7 @@ export default function DiscoverView({ guildId }: { guildId: string }) {
 
   const enqueueTrackMutation = useMutation({
     mutationFn: (trackId: string) =>
-      fetch(`/api/guild/${guildId}/queue`, {
+      apiFetch(`/api/guild/${guildId}/queue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trackId }),

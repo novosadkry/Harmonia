@@ -6,29 +6,24 @@ import { useMutation } from '@tanstack/react-query';
 import { Play, Pause, SkipForward, SkipBack, Shuffle, Repeat, Repeat1 } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
-async function sendCommand(guildId: string, command: object) {
-  const res = await fetch(`/api/guild/${guildId}/command`, {
+const sendCommand = (guildId: string, command: object) =>
+  apiFetch(`/api/guild/${guildId}/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ command }),
   });
-  if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Command failed');
-}
 
-async function takeDJ(guildId: string, channelId: string) {
-  const res = await fetch(`/api/guild/${guildId}/dj/take`, {
+const takeDJ = (guildId: string, channelId: string) =>
+  apiFetch(`/api/guild/${guildId}/dj/take`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ channelId }),
   });
-  if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Failed to take DJ control');
-}
 
-async function releaseDJ(guildId: string) {
-  const res = await fetch(`/api/guild/${guildId}/dj/release`, { method: 'POST' });
-  if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Failed to release DJ control');
-}
+const releaseDJ = (guildId: string) =>
+  apiFetch(`/api/guild/${guildId}/dj/release`, { method: 'POST' });
 
 export default function NowPlayingView({ guildId }: { guildId: string }) {
   const { state, queue, djUserId } = usePlaybackStore();

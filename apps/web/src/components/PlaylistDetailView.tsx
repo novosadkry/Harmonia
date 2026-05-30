@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import Image from 'next/image';
 import { Trash2, Plus, Share2, Play } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 interface Track {
   id: string;
@@ -44,16 +45,16 @@ export default function PlaylistDetailView({
 
   const { data: playlist } = useQuery<Playlist>({
     queryKey: ['playlist', playlistId],
-    queryFn: () => fetch(`/api/playlists/${playlistId}`).then((r) => r.json()),
+    queryFn: () => apiFetch<Playlist>(`/api/playlists/${playlistId}`),
   });
 
   const addTrackMutation = useMutation({
     mutationFn: (trackInput: string) =>
-      fetch(`/api/playlists/${playlistId}/tracks`, {
+      apiFetch(`/api/playlists/${playlistId}/tracks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input: trackInput }),
-      }).then((r) => r.json()),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playlist', playlistId] });
       setInput('');
@@ -62,7 +63,7 @@ export default function PlaylistDetailView({
 
   const removeTrackMutation = useMutation({
     mutationFn: (trackId: string) =>
-      fetch(`/api/playlists/${playlistId}/tracks/${trackId}`, { method: 'DELETE' }),
+      apiFetch(`/api/playlists/${playlistId}/tracks/${trackId}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playlist', playlistId] });
     },
@@ -70,7 +71,7 @@ export default function PlaylistDetailView({
 
   const enqueueAllMutation = useMutation({
     mutationFn: () =>
-      fetch(`/api/guild/${guildId}/queue/playlist`, {
+      apiFetch(`/api/guild/${guildId}/queue/playlist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playlistId }),
@@ -78,8 +79,7 @@ export default function PlaylistDetailView({
   });
 
   const shareMutation = useMutation({
-    mutationFn: () =>
-      fetch(`/api/playlists/${playlistId}/share`, { method: 'POST' }).then((r) => r.json()) as Promise<{ url: string }>,
+    mutationFn: () => apiFetch<{ url: string }>(`/api/playlists/${playlistId}/share`, { method: 'POST' }),
     onSuccess: (data) => {
       navigator.clipboard.writeText(data.url).catch(() => {});
       alert(`Share link copied: ${data.url}`);
