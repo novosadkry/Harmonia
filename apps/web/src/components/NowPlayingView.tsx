@@ -27,6 +27,7 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
   const { data: session } = useSession();
   const s = session as typeof session & { userId?: string };
   const currentUserId = s?.userId ?? null;
+  const isLoading = state.status === 'loading';
   const [elapsed, setElapsed] = useState(0);
 
   const { data: djInfo } = useQuery({
@@ -120,7 +121,7 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
 
       <div className="flex items-center gap-6 mb-6">
         <button
-          disabled={!isCurrentUserDJ}
+          disabled={!isCurrentUserDJ || isLoading}
           onClick={() => commandMutation.mutate({ type: 'TOGGLE_SHUFFLE' })}
           className={cn(
             'p-2 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed',
@@ -131,7 +132,7 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
         </button>
 
         <button
-          disabled={!isCurrentUserDJ}
+          disabled={!isCurrentUserDJ || isLoading}
           onClick={() => commandMutation.mutate({ type: 'SEEK', positionSeconds: 0 })}
           className="p-2 rounded-full text-white/60 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
@@ -139,7 +140,7 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
         </button>
 
         <button
-          disabled={!isCurrentUserDJ}
+          disabled={!isCurrentUserDJ || isLoading}
           onClick={() =>
             commandMutation.mutate(
               state.status === 'playing' ? { type: 'PAUSE' } : { type: 'PLAY' },
@@ -155,7 +156,7 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
         </button>
 
         <button
-          disabled={!isCurrentUserDJ}
+          disabled={!isCurrentUserDJ || isLoading}
           onClick={() => commandMutation.mutate({ type: 'SKIP' })}
           className="p-2 rounded-full text-white/60 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
@@ -163,7 +164,7 @@ export default function NowPlayingView({ guildId }: { guildId: string }) {
         </button>
 
         <button
-          disabled={!isCurrentUserDJ}
+          disabled={!isCurrentUserDJ || isLoading}
           onClick={() => {
             const next =
               state.loop === 'none' ? 'track' : state.loop === 'track' ? 'queue' : 'none';

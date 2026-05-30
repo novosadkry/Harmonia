@@ -1,6 +1,7 @@
 import { redis, keys, publishCommand, publishEvent } from '@harmonia/redis';
 import { prisma } from '@harmonia/db';
 import type { PlaybackState, TrackInQueue, BotCommand } from '@harmonia/types';
+import { resolveTrack } from './resolver';
 
 const DJ_LOCK_TTL = 300; // 5 minutes
 
@@ -116,6 +117,53 @@ export async function enqueueTrack(
   if (state.status === 'stopped') {
     await publishCommand(redis, keys.commandChannel(guildId), { type: 'PLAY' });
   }
+}
+
+export async function removeFromQueue(
+  userId: string,
+  guildId: string,
+  index: number,
+): Promise<void> {
+  const currentDj = await redis.get(keys.djLock(guildId));
+  if (currentDj !== userId) throw new Error('You do not hold DJ control');
+
+  const queueKey = keys.queue(guildId);
+  const placeholder = `__deleted_${Date.now()}__`;
+  const pipeline = redis.multi();
+  pipeline.lset(queueKey, index, placeholder);
+  pipeline.lrem(queueKey, 1, placeholder);
+  await pipeline.exec();
+
+  const queue = await getQueue(guildId);
+  await publishEvent(redis, keys.eventChannel(guildId), { type: 'QUEUE_UPDATED', queue });
+}
+
+export async function reorderQueue(
+  userId: string,
+  guildId: string,
+  newQueue: TrackInQueue[],
+): Promise<void> {
+  const currentDj = await redis.get(keys.djLock(guildId));
+  if (currentDj !== userId) throw new Error('You do not hold DJ control');
+
+  const queueKey = keys.queue(guildId);
+  const entries = newQueue.map((item) => JSON.stringify(item));
+  const pipeline = redis.multi();
+  pipeline.del(queueKey);
+  if (entries.length > 0) pipeline.rpush(queueKey, ...entries);
+  await pipeline.exec();
+
+  await publishEvent(redis, keys.eventChannel(guildId), { type: 'QUEUE_UPDATED', queue: newQueue });
+}
+
+export async function enqueueByInput(
+  userId: string,
+  guildId: string,
+  input: string,
+): Promise<void> {
+  const result = await resolveTrack(input, userId);
+  if (!result.ok) throw new Error(result.error.message);
+  await enqueueTrack(userId, guildId, result.value.id);
 }
 
 export async function enqueuePlaylist(

@@ -78,6 +78,15 @@ export default function PlaylistDetailView({
       }),
   });
 
+  const enqueueTrackMutation = useMutation({
+    mutationFn: (trackId: string) =>
+      apiFetch(`/api/guild/${guildId}/queue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId }),
+      }),
+  });
+
   const shareMutation = useMutation({
     mutationFn: () => apiFetch<{ url: string }>(`/api/playlists/${playlistId}/share`, { method: 'POST' }),
     onSuccess: (data) => {
@@ -157,6 +166,13 @@ export default function PlaylistDetailView({
             <span className="text-sm text-white/40 shrink-0">
               {formatDuration(pt.track.durationSeconds)}
             </span>
+            <button
+              onClick={() => enqueueTrackMutation.mutate(pt.trackId)}
+              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-white/40 hover:text-accent hover:bg-accent/10 transition-all"
+              title="Add to queue"
+            >
+              <Play className="w-4 h-4" />
+            </button>
             <button
               onClick={() => removeTrackMutation.mutate(pt.trackId)}
               className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-all"
