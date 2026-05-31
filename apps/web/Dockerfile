@@ -2,30 +2,25 @@
 # docker build -f apps/web/Dockerfile -t harmonia-web .
 
 # ── Builder ───────────────────────────────────────────────────────────────────
-FROM node:22-slim AS builder
+FROM node:22-alpine AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    python3 make g++ curl \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+RUN apk add --no-cache ca-certificates python3 make g++ curl
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/db/package.json      packages/db/
 COPY packages/redis/package.json   packages/redis/
 COPY packages/types/package.json   packages/types/
 COPY apps/web/package.json         apps/web/
 
-RUN pnpm install --frozen-lockfile
+RUN npm ci
 
 COPY packages/ packages/
 COPY apps/web/  apps/web/
 
 # Build workspace deps then Next.js app
-RUN pnpm --filter @harmonia/web... build
+RUN node_modules/.bin/turbo run build --filter=@harmonia/web...
 
 # Bundle server.ts + its local imports (e.g. socket-server.ts) into CJS.
 # --packages=external leaves all npm packages as runtime requires.
@@ -37,7 +32,7 @@ RUN node_modules/.bin/esbuild apps/web/server.ts \
     --outfile=apps/web/server.js
 
 # ── Runner ────────────────────────────────────────────────────────────────────
-FROM node:22-slim AS runner
+FROM node:22-alpine AS runner
 
 ENV NODE_ENV=production
 
@@ -53,9 +48,9 @@ COPY --from=builder /app/packages/db/dist         packages/db/dist
 COPY --from=builder /app/packages/db/package.json packages/db/package.json
 COPY --from=builder /app/packages/redis/dist         packages/redis/dist
 COPY --from=builder /app/packages/redis/package.json packages/redis/package.json
-COPY --from=builder /app/packages/types/dist         packages/types/dist
+COPY --from=builder /app/packages/types/src          packages/types/src
 COPY --from=builder /app/packages/types/package.json packages/types/package.json
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json ./
 
 EXPOSE 3000
 

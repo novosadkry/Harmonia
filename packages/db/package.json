@@ -7,7 +7,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "build": "prisma generate && tsc"
+    "build": "prisma generate && tsc",
+    "dev": "tsc --watch"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -26,7 +27,7 @@
   "devDependencies": {
     "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
-    "prisma": "catalog:prisma",
+    "prisma": "^7.8.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3"
   }

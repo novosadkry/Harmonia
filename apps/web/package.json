@@ -9,9 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@harmonia/db": "workspace:*",
-    "@harmonia/redis": "workspace:*",
-    "@harmonia/types": "workspace:*",
+    "@harmonia/db": "*",
+    "@harmonia/redis": "*",
+    "@harmonia/types": "*",
     "@tanstack/react-query": "^5.100.14",
     "clsx": "^2.1.1",
     "ioredis": "^5.11.0",

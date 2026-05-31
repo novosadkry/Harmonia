@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "dev": "tsc --watch"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,7 +16,7 @@
     }
   },
   "dependencies": {
-    "@harmonia/types": "workspace:*",
+    "@harmonia/types": "*",
     "ioredis": "^5.11.0"
   },
   "devDependencies": {
